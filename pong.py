@@ -32,12 +32,13 @@ barra_punched = False
 
 # Variables posición de la Pelota
 bola_radio = 10
-bola_centro = (ancho // 2, alto // 2)
+bola_centro = [ancho // 2, alto // 2]
 bola_color = (255, 0, 0)  # Color de la pelota
 bola_angulo = 45  # Ángulo de movimiento de la pelota (en grados)
 bola_rapida = 10  # Velocidad de la pelota al ser golpeada
 bola_despacio = 5  # Velocidad de la pelota al no ser golpeada
 bola_step = bola_despacio  # Paso de movimiento de la pelota
+max_aceleracion = 50  # Máximo valor del contador de desaceleración
 
 # Variables usadas en el efecto de desaceleración de la barra al soltarla
 desaceleracion = "ninguno"  # Variable para controlar el desaceleracion de la barra
@@ -69,7 +70,7 @@ def pygame_config():
 
 def game_init():
     global ancho, alto, bola_centro, barra_ancho, barra_y_def, game_over, bola_step
-    bola_centro = (ancho // 2, alto // 2)
+    bola_centro = [ancho // 2, alto // 2]
     barra_x = (ancho - barra_ancho) // 2
     barra_y = barra_y_def
     game_over = False  # Reiniciar el juego al presionar Enter
@@ -79,7 +80,7 @@ def game_init():
 # Captura eventos de teclado y cierre de ventana
 # Actualiza la posición de la barra según las teclas presionadas
 def manejador_eventos():
-    global barra_step, desaceleracion, desacel_cntr, barra_punched
+    global barra_step, desaceleracion, desacel_cntr, barra_punched, max_aceleracion
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -125,7 +126,8 @@ def manejador_eventos():
                 log("Tecla abajo liberada")
     # Resetear el contador de desaceleración
     if botones["izquierda"] == "presionado" or botones["derecha"] == "presionado":
-        desacel_cntr = min(desacel_cntr + 1, 20)
+        desacel_cntr = min(desacel_cntr + 1, max_aceleracion)  # Limitar el contador de desaceleración a un máximo
+        #log(f"Contador de desaceleración: {desacel_cntr}")
 
 # Función para dibujar la barra en la posición especificada por las variables globales
 def dibujar_barra():
@@ -182,10 +184,10 @@ def dibujar_bola():
     # Mover la bola en una dirección arbitraria
     bola_centro = mover_en_direccion(bola_centro, bola_angulo, bola_step)  # Mover la bola en una dirección arbitraria
     # Limitar la bola dentro de los bordes de la pantalla
-    bola_centro = (
+    bola_centro = [
         max(bola_radio, min(bola_centro[0], ancho - bola_radio)),
         max(bola_radio, min(bola_centro[1], alto - bola_radio))
-    )
+    ]
     # Si la bola toca un borde de la pantalla, invertir su dirección
     if bola_centro[0] <= bola_radio or bola_centro[0] >= ancho - bola_radio:
         # Invertir la dirección de la bola sentido horizontal
@@ -204,9 +206,11 @@ def bola_colision_barra():
     if colision_circulo_rect(bola_centro[0], bola_centro[1], bola_radio, pygame.Rect(barra_x, barra_y, barra_ancho, barra_alto)):
         # Invertir la dirección de la bola al colisionar con la barra
         bola_angulo = (-bola_angulo) % 360
+        # Ajustar el angulo de la bola dependiendo de la velocidad de la barra
+
         log("Colisión detectada entre la bola y la barra.")
         # Ajustar la posición 'y' de la bola al colisionar, para que no se quede pegada a la barra
-        bola_centro = (bola_centro[0], barra_y - bola_radio)
+        bola_centro[1] = barra_y - bola_radio
         # Si la barra fue golpeada con fuerza, aumentar la velocidad de la bola
         if barra_punched:
             bola_step = bola_rapida
