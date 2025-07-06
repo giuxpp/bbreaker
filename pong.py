@@ -4,10 +4,10 @@ import math
 
 # Configuración de pantalla
 ancho, alto = 1200, 800
-pantalla, reloj = None, None
+pantalla = None
+reloj = None
 
 # Variables globales
-terminar_programa = False
 logs_activados = True
 game_over = False  # Variable para controlar el estado del juego
 
@@ -39,10 +39,10 @@ bola_rapida = 10  # Velocidad de la pelota al ser golpeada
 bola_despacio = 5  # Velocidad de la pelota al no ser golpeada
 bola_step = bola_despacio  # Paso de movimiento de la pelota
 max_aceleracion = 50  # Máximo valor del contador de desaceleración
+bola_ang_min, bola_ang_max = 30, 150  # Ángulos mínimo y máximo de la bola al colisionar con la barra
 
 # Variables usadas en el efecto de desaceleración de la barra al soltarla
 desaceleracion = "ninguno"  # Variable para controlar el desaceleracion de la barra
-desacel_cntr_def = 0  # Valor default del contador de desaceleración
 desacel_cntr = 0 # Contador para la desaceleración de la barra
 
 def log(mensaje):
@@ -162,6 +162,25 @@ def dibujar_barra():
     # Dibujar la barra
     pygame.draw.rect(pantalla, (255, 255, 255), (barra_x, barra_y, barra_ancho, barra_alto))
 
+def ajustar_angulo_colision(angulo_actual, direccion_bola, direccion_barra):
+    global desacel_cntr, max_aceleracion, bola_ang_min, bola_ang_max
+    direccion_bola = direccion_bola.lower()
+    direccion_barra = direccion_barra.lower()
+    # Verificar que la dirección de la bola y la barra sean válidas
+    if max_aceleracion == 0:
+        return max(bola_ang_min, min(bola_ang_max, angulo_actual))
+    t = desacel_cntr / max_aceleracion
+    curva = t ** 2  # crecimiento exponencial
+    # Ajustar el ángulo de la bola según la dirección de la barra
+    if direccion_bola == direccion_barra:
+        factor = 1.0 - 0.5 * curva  # reducir ángulo
+    else:
+        factor = 1.0 + 0.5 * curva  # aumentar ángulo
+    # Calcular el nuevo ángulo
+    nuevo_angulo = (angulo_actual * factor) % 360
+    nuevo_angulo = max(bola_ang_min, min(bola_ang_max, nuevo_angulo))
+    return nuevo_angulo
+
 def colision_circulo_rect(cx, cy, radio, rect):
     # Verifica si un círculo colisiona con un rectángulo
     # cx, cy: coordenadas del centro del círculo
@@ -200,15 +219,27 @@ def dibujar_bola():
     # Dibujar la bola
     pygame.draw.circle(pantalla, bola_color, bola_centro, bola_radio)
 
+def direccion_bola(angulo):
+    """Devuelve 'derecha' o 'izquierda' según el ángulo de movimiento."""
+    angulo = angulo % 360  # normaliza
+    if angulo < 90 or angulo > 270:
+        return "derecha"
+    else:
+        return "izquierda"
+
 def bola_colision_barra():
     global bola_centro, bola_radio, barra_x, barra_y, barra_ancho, barra_alto, bola_angulo, bola_step, bola_rapida, bola_despacio, barra_punched
     # Comprobar si la bola colisiona con la barra
     if colision_circulo_rect(bola_centro[0], bola_centro[1], bola_radio, pygame.Rect(barra_x, barra_y, barra_ancho, barra_alto)):
-        # Invertir la dirección de la bola al colisionar con la barra
-        bola_angulo = (-bola_angulo) % 360
-        # Ajustar el angulo de la bola dependiendo de la velocidad de la barra
-
-        log("Colisión detectada entre la bola y la barra.")
+        # Ajustar el angulo de la bola dependiendo de la direccion velocidad de la barra
+        if (botones["izquierda"] == "presionado" and "izquierda" == direccion_bola(bola_angulo)) or \
+           (botones["derecha"] == "presionado" and "derecha" == direccion_bola(bola_angulo)):
+            log("Colisión detectada entre la bola y la barra.")    
+            log(f"Ángulo de la bola antes de colisión: {bola_angulo}°")
+            bola_angulo = ajustar_angulo_colision(bola_angulo, direccion_bola(bola_angulo), "izquierda")        
+            log(f"Angulo de la bola despues de colisión: {bola_angulo}°" + "Aceleración: " + str(desacel_cntr))
+        # Invertir la dirección de la bola al colisionar con la barra        
+        bola_angulo = (-bola_angulo) % 360                                
         # Ajustar la posición 'y' de la bola al colisionar, para que no se quede pegada a la barra
         bola_centro[1] = barra_y - bola_radio
         # Si la barra fue golpeada con fuerza, aumentar la velocidad de la bola
