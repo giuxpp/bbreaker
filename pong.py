@@ -160,6 +160,23 @@ def dibujar_barra():
     # Dibujar la barra
     pygame.draw.rect(pantalla, (255, 255, 255), (barra_x, barra_y, barra_ancho, barra_alto))
 
+def colision_circulo_rect(cx, cy, radio, rect):
+    # Verifica si un círculo colisiona con un rectángulo
+    # cx, cy: coordenadas del centro del círculo
+    # radio: radio del círculo
+    # rect: objeto rectángulo de Pygame (pygame.Rect)
+    # Si el rect no es un objeto Rect, retorna False
+    if not isinstance(rect, pygame.Rect):
+        log("Error: El rectángulo debe ser un objeto pygame.Rect")
+        return False
+    # Encuentra el punto más cercano del rect al círculo
+    punto_mas_cercano_x = max(rect.left, min(cx, rect.right))
+    punto_mas_cercano_y = max(rect.top,  min(cy, rect.bottom))
+    # Calcula distancia entre el centro del círculo y ese punto
+    dx = cx - punto_mas_cercano_x
+    dy = cy - punto_mas_cercano_y
+    return (dx*dx + dy*dy) < (radio*radio)
+
 def dibujar_bola():
     global bola_centro, bola_radio, bola_color, bola_angulo, game_over, bola_step, bola_despacio
     # Mover la bola en una dirección arbitraria
@@ -171,26 +188,31 @@ def dibujar_bola():
     )
     # Si la bola toca un borde de la pantalla, invertir su dirección
     if bola_centro[0] <= bola_radio or bola_centro[0] >= ancho - bola_radio:
+        # Invertir la dirección de la bola sentido horizontal
         bola_angulo = (180 - bola_angulo) % 360
     if bola_centro[1] <= bola_radio or bola_centro[1] >= alto - bola_radio:
-        # Invertir la dirección de la bola (esto es un ejemplo simple, puedes mejorar la lógica)        
+        # Invertir la dirección de la bola sentido vertical
         bola_angulo = (-bola_angulo) % 360
-    if bola_centro[1] >= alto - bola_radio: game_over = True # Terminar el juego si la bola toca el borde inferior
-
+    # Terminar el juego si la bola toca el borde inferior
+    if bola_centro[1] >= alto - bola_radio: game_over = True 
+    # Dibujar la bola
     pygame.draw.circle(pantalla, bola_color, bola_centro, bola_radio)
 
 def bola_colision_barra():
     global bola_centro, bola_radio, barra_x, barra_y, barra_ancho, barra_alto, bola_angulo, bola_step, bola_rapida, bola_despacio, barra_punched
     # Comprobar si la bola colisiona con la barra
-    if (barra_x < bola_centro[0] < barra_x + barra_ancho and
-        barra_y < bola_centro[1] + bola_radio < barra_y + barra_alto):
+    if colision_circulo_rect(bola_centro[0], bola_centro[1], bola_radio, pygame.Rect(barra_x, barra_y, barra_ancho, barra_alto)):
         # Invertir la dirección de la bola al colisionar con la barra
         bola_angulo = (-bola_angulo) % 360
         log("Colisión detectada entre la bola y la barra.")
+        # Ajustar la posición 'y' de la bola al colisionar, para que no se quede pegada a la barra
+        bola_centro = (bola_centro[0], barra_y - bola_radio)
+        # Si la barra fue golpeada con fuerza, aumentar la velocidad de la bola
         if barra_punched:
             bola_step = bola_rapida
             log("Bola golpeada con fuerza.")            
-        else:
+        # Si la barra fue golpeada suavemente, mantener la velocidad normal
+        else:        
             bola_step = bola_despacio
             log("Bola golpeada suavemente.")
         log("Barra_Punched: " + str(barra_punched))
@@ -229,9 +251,9 @@ def main():
 
         pantalla.fill((0, 0, 0))  # Fondo negro
 
-        # Dibujar objetos aquí
+        # Dibujar barra tomando en cuenta su movimiento
         dibujar_barra()
-        # Dibujar la pelota
+        # Dibujar la pelota tomando en cuenta su movimiento y rebotes con el borde de la pantalla
         dibujar_bola()
         pygame.display.flip()     # Mostrar todo en pantalla
         reloj.tick(60)            # Limita a 60 FPS
