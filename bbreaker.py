@@ -63,6 +63,7 @@ barra_step_inc = barra_step_def  # Incremento del paso de movimiento de la barra
 barra_step_max = 20  # Máximo paso de movimiento de la barra
 barra_step = barra_step_def
 barra_punched = False
+direccion_barra = "izquierda"  # Dirección de la barra, se actualiza en el evento de teclado
 
 # Variables posición de la Pelota
 bola_radio = 10
@@ -166,7 +167,7 @@ def manejador_eventos():
 
 # Función para dibujar la barra en la posición especificada por las variables globales
 def dibujar_barra():
-    global barra_x, barra_y, barra_ancho, barra_alto, barra_step, desaceleracion, desacel_cntr, barra_y_def
+    global barra_x, barra_y, barra_ancho, barra_alto, barra_step, desaceleracion, desacel_cntr, barra_y_def, direccion_barra
     # Limitar la barra dentro de los bordes de la pantalla
     barra_x = max(0, min(barra_x, ancho - barra_ancho))
     # Aceleración
@@ -190,27 +191,30 @@ def dibujar_barra():
     # Movimiento
     if (botones["izquierda"] == "presionado" and barra_x > 0) or desaceleracion == "izquierda":
         barra_x -= barra_step
+        direccion_barra = "izquierda"
     elif (botones["derecha"] == "presionado" and barra_x < ancho - barra_ancho) or desaceleracion == "derecha":
         barra_x += barra_step
+        direccion_barra = "derecha"
     # Limitar la barra nuevamente después del movimiento
     barra_x = max(0, min(barra_x, ancho - barra_ancho))
     # Dibujar la barra
     pygame.draw.rect(pantalla, (255, 255, 255), (barra_x, barra_y, barra_ancho, barra_alto))
 
-def ajustar_angulo_colision(angulo_actual, direccion_bola, direccion_barra):
+def ajustar_angulo_colision(angulo_actual, direccion_bola, direccion_barra_local):
     global desacel_cntr, max_aceleracion, bola_ang_min, bola_ang_max
-    direccion_bola = direccion_bola.lower()
-    direccion_barra = direccion_barra.lower()
     # Verificar que la dirección de la bola y la barra sean válidas
     if max_aceleracion == 0:
         return max(bola_ang_min, min(bola_ang_max, angulo_actual))
     t = desacel_cntr / max_aceleracion
     curva = t ** 2  # crecimiento exponencial
     # Ajustar el ángulo de la bola según la dirección de la barra
-    if direccion_bola == direccion_barra:
+    log("Direccin de la bola: " + str(direccion_bola) + " Direccion de la barra: " + str(direccion_barra_local))
+    if direccion_bola == direccion_barra_local:
         factor = 1.0 - 0.5 * curva  # reducir ángulo
+        log(f"Reduciendo ángulo: {angulo_actual}° por factor {factor:.2f}")        
     else:
         factor = 1.0 + 0.5 * curva  # aumentar ángulo
+        log(f"Aumentando ángulo: {angulo_actual}° por factor {factor:.2f}")
     # Calcular el nuevo ángulo
     nuevo_angulo = (angulo_actual * factor) % 360
     nuevo_angulo = max(bola_ang_min, min(bola_ang_max, nuevo_angulo))
@@ -266,22 +270,23 @@ def direccion_bola(angulo):
     else:
         vertical = "arriba"
     return horizontal, vertical
-    
+
 def checar_colision_barra():
     # Detecta y maneja la colisión con la bara, modificando el angulo en funcion de la velocidad
-    global bola_centro, bola_radio, barra_x, barra_y, barra_ancho, barra_alto, bola_angulo, bola_step, bola_rapida, bola_despacio, barra_punched
+    global bola_centro, bola_radio, barra_x, barra_y, barra_ancho, barra_alto, bola_angulo, bola_step, bola_rapida, bola_despacio, barra_punched, direccion_barra
     # Si la pelota no esta cerca de la barra, no tiene caso checar por colisiones (optimización)
     if bola_centro[1] < barra_y - bola_radio - 10:
         return  # La bola está por encima de la barra, no hay colisión
     # Comprobar si la bola colisiona con la barra
     if colision_circulo_rect(bola_centro[0], bola_centro[1], bola_radio, pygame.Rect(barra_x, barra_y, barra_ancho, barra_alto)):
         # Ajustar el angulo de la bola dependiendo de la direccion y velocidad de la barra
-        if (botones["izquierda"] == "presionado" and "izquierda" == direccion_bola(bola_angulo)) or \
-           (botones["derecha"] == "presionado" and "derecha" == direccion_bola(bola_angulo)):
-            log("Colisión detectada entre la bola y la barra.")    
-            log(f"Ángulo de la bola antes de colisión: {bola_angulo}°")
-            bola_angulo = ajustar_angulo_colision(bola_angulo, direccion_bola(bola_angulo), "izquierda")        
-            log(f"Angulo de la bola despues de colisión: {bola_angulo}°" + "Aceleración: " + str(desacel_cntr))
+        log("Colisión detectada entre la bola y la barra.")    
+        log(f"Ángulo de la bola antes de colisión: {bola_angulo}°")        
+        if direccion_barra == "izquierda": 
+            bola_angulo = ajustar_angulo_colision(bola_angulo, direccion_bola(bola_angulo)[0], "izquierda")
+        elif direccion_barra == "derecha": 
+            bola_angulo = ajustar_angulo_colision(bola_angulo, direccion_bola(bola_angulo)[0], "derecha")        
+        log(f"Angulo de la bola despues de colisión: {bola_angulo}°" + "Aceleración: " + str(desacel_cntr))
         # Invertir la dirección de la bola al colisionar con la barra        
         bola_angulo = (-bola_angulo) % 360                                
         # Ajustar la posición 'y' de la bola al colisionar, para que no se quede pegada a la barra
