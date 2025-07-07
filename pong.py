@@ -7,16 +7,49 @@ ancho, alto = 1200, 800
 pantalla = None
 reloj = None
 
-# Variables globales
-logs_activados = True
-game_over = False  # Variable para controlar el estado del juego
+# Colores
+amarillo = (255, 255, 0)
+blanco = (255, 255, 255)
 
+# Variables globales
+logs_activados = False
+game_over = False  # Variable para controlar el estado del juego
 botones = {
     "izquierda": "liberado",
     "derecha": "liberado",
     "arriba": "liberado",
     "abajo": "liberado"
 }
+bloques = []  # Lista de bloques
+
+class Bloque:
+    ANCHO = 100
+    ALTO = 20
+    
+    def __init__(self, x, y, color=amarillo, max_colisiones=1, fila=1):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.colisiones = 0
+        self.max_colisiones = max_colisiones
+        self.fila = fila
+        self.activo = True
+
+    def rect(self):
+        return pygame.Rect(self.x, self.y, self.ANCHO, self.ALTO)
+
+    def dibujar(self, superficie):
+        if self.activo:
+            pygame.draw.rect(superficie, self.color, self.rect())    # Relleno     
+            pygame.draw.rect(pantalla, blanco, self.rect(), width=2) # Borde 
+
+    def colisionar(self):
+        if not self.activo:
+            return
+        self.colisiones += 1
+        if self.colisiones >= self.max_colisiones:
+            self.activo = False
+
 
 # Variables de posición de la Barra
 barra_ancho, barra_alto = 100, 20
@@ -53,7 +86,7 @@ def log(mensaje):
 # Descripción del juego
 log ("Este es un juego de pong hecho por Giuxx")
 
-def mover_en_direccion(centro, angulo_grados, distancia):
+def calcular_sig_centro(centro, angulo_grados, distancia):
     angulo_rad = math.radians(angulo_grados)
     x, y = centro
     nuevo_x = x + math.cos(angulo_rad) * distancia
@@ -201,7 +234,7 @@ def colision_circulo_rect(cx, cy, radio, rect):
 def dibujar_bola():
     global bola_centro, bola_radio, bola_color, bola_angulo, game_over, bola_step, bola_despacio
     # Mover la bola en una dirección arbitraria
-    bola_centro = mover_en_direccion(bola_centro, bola_angulo, bola_step)  # Mover la bola en una dirección arbitraria
+    bola_centro = calcular_sig_centro(bola_centro, bola_angulo, bola_step)  # Mover la bola en una dirección arbitraria
     # Limitar la bola dentro de los bordes de la pantalla
     bola_centro = [
         max(bola_radio, min(bola_centro[0], ancho - bola_radio)),
@@ -220,18 +253,27 @@ def dibujar_bola():
     pygame.draw.circle(pantalla, bola_color, bola_centro, bola_radio)
 
 def direccion_bola(angulo):
-    """Devuelve 'derecha' o 'izquierda' según el ángulo de movimiento."""
-    angulo = angulo % 360  # normaliza
+    # Devuelve una tupla 'arriba'|'abajo' , 'derecha'|'izquierda' según el ángulo de movimiento
+    angulo = angulo % 360  # normaliza    
     if angulo < 90 or angulo > 270:
-        return "derecha"
+        horizontal = "derecha"
     else:
-        return "izquierda"
-
-def bola_colision_barra():
+        horizontal = "izquierda"
+    if 0 <= angulo < 180:
+        vertical = "abajo"
+    else:
+        vertical = "arriba"
+    return horizontal, vertical
+    
+def checar_colision_barra():
+    # Detecta y maneja la colisión con la bara, modificando el angulo en funcion de la velocidad
     global bola_centro, bola_radio, barra_x, barra_y, barra_ancho, barra_alto, bola_angulo, bola_step, bola_rapida, bola_despacio, barra_punched
+    # Si la pelota no esta cerca de la barra, no tiene caso checar por colisiones (optimización)
+    if bola_centro[1] < barra_y - bola_radio - 10:
+        return  # La bola está por encima de la barra, no hay colisión
     # Comprobar si la bola colisiona con la barra
     if colision_circulo_rect(bola_centro[0], bola_centro[1], bola_radio, pygame.Rect(barra_x, barra_y, barra_ancho, barra_alto)):
-        # Ajustar el angulo de la bola dependiendo de la direccion velocidad de la barra
+        # Ajustar el angulo de la bola dependiendo de la direccion y velocidad de la barra
         if (botones["izquierda"] == "presionado" and "izquierda" == direccion_bola(bola_angulo)) or \
            (botones["derecha"] == "presionado" and "derecha" == direccion_bola(bola_angulo)):
             log("Colisión detectada entre la bola y la barra.")    
@@ -250,7 +292,47 @@ def bola_colision_barra():
         else:        
             bola_step = bola_despacio
             log("Bola golpeada suavemente.")
-        log("Barra_Punched: " + str(barra_punched))
+
+def checar_colision_bloques():
+    global bola_centro, bola_radio, bloques, bola_angulo
+    for bloque in bloques:
+        if bloque.activo and colision_circulo_rect(bola_centro[0], bola_centro[1], bola_radio, bloque.rect()):
+            log(f"Colisión detectada entre la bola y el bloque en fila {bloque.fila}.")
+            # Invertir la dirección de la bola al colisionar con un bloque
+            bola_angulo = (-bola_angulo) % 360
+            # Ajustar la posición 'y' de la bola al colisionar, para que no se quede pegada al bloque
+            # Evitar que la bola se quede pegada al bloque
+            direccion = direccion_bola(bola_angulo)
+            # switch case dependiendo de direccion
+            if direccion[0]   == "derecha":   bola_centro[0] = bola_centro[0] - bola_radio//2
+            elif direccion[0] == "izquierda": bola_centro[0] = bola_centro[0] + bola_radio//2
+            if direccion[1]   == "abajo":     bola_centro[1] = bola_centro[1] + bola_radio//2
+            elif direccion[1] == "arriba":    bola_centro[1] = bola_centro[1] - bola_radio//2
+            # Marcar el bloque como colisionado
+            bloque.colisionar()
+            log(f"Bloque en fila {bloque.fila} colisionado. Colisiones actuales: {bloque.colisiones}/{bloque.max_colisiones}")
+            break  # Salir del bucle después de la primera colisión
+
+def dibujar_bloques():
+    global bloques, ancho, alto    
+    fila_mayor = 9
+    filas_totales = 5    
+    punto_inicial = 30,100 #(ancho - (Bloque.ANCHO+10)*fila_mayor) // 2, 100
+    x = punto_inicial[0]
+    y = punto_inicial[1]
+    bloques.clear()
+    # Crear bloques en filas y columnas
+    for i in range(filas_totales):
+        for j in range(fila_mayor):
+            x = x + (Bloque.ANCHO + 10)
+            bloque = Bloque(x, y, color=amarillo, max_colisiones=1, fila=i+1)
+            bloques.append(bloque)
+        x = punto_inicial[0] + (i+1)*(Bloque.ANCHO + 10)      # Restablecer x para la siguiente fila recorriendo 
+        y = y + (Bloque.ALTO + 10) # Ajustar la posición 'y' de los bloques
+        fila_mayor = max(1, fila_mayor- 2)             # Reducir la cantidad de bloques en cada fila        
+    # Dibujar todos los bloques recorriendo la lista
+    for bloque in bloques:
+        bloque.dibujar(pantalla)
 
 def game_over_display():
     global game_over
@@ -269,7 +351,7 @@ def game_over_display():
 
 # Función principal del juego
 def main():
-    global game_over
+    global game_over,reloj
     game_init() # Inicializar el juego (variables globales etc)
     pygame_config()  # Configurar Pygame
     log("Pygame inicializado correctamente.")
@@ -279,13 +361,16 @@ def main():
     while True:
         # Manejo de eventos
         manejador_eventos()
-        bola_colision_barra()
-
+        
         # Actualizar estado del juego aquí
+        checar_colision_barra()
+        checar_colision_bloques()
         if game_over: game_over_display()           
 
+        # Limpiar la pantalla en cada frame
         pantalla.fill((0, 0, 0))  # Fondo negro
-
+        # Dibujar bloques
+        dibujar_bloques()
         # Dibujar barra tomando en cuenta su movimiento
         dibujar_barra()
         # Dibujar la pelota tomando en cuenta su movimiento y rebotes con el borde de la pantalla
