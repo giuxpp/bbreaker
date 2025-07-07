@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+logs_activados = True
 
 # Configuración de pantalla
 ancho, alto = 1200, 800
@@ -12,7 +13,6 @@ amarillo = (255, 255, 0)
 blanco = (255, 255, 255)
 
 # Variables globales
-logs_activados = False
 game_over = False  # Variable para controlar el estado del juego
 botones = {
     "izquierda": "liberado",
@@ -48,6 +48,7 @@ class Bloque:
             return
         self.colisiones += 1
         if self.colisiones >= self.max_colisiones:
+            log(f"Bloque en fila {self.fila} destruido.")
             self.activo = False
 
 
@@ -108,6 +109,7 @@ def game_init():
     barra_y = barra_y_def
     game_over = False  # Reiniciar el juego al presionar Enter
     bola_step = bola_despacio
+    crear_bloques()  # Crear bloques al iniciar el juego
 
 # Manejador de eventos del juego
 # Captura eventos de teclado y cierre de ventana
@@ -313,15 +315,22 @@ def checar_colision_bloques():
             log(f"Bloque en fila {bloque.fila} colisionado. Colisiones actuales: {bloque.colisiones}/{bloque.max_colisiones}")
             break  # Salir del bucle después de la primera colisión
 
-def dibujar_bloques():
+def dibujar_bloques():    
+    # Dibujar todos los bloques recorriendo la lista
+    global bloques, pantalla
+    for bloque in bloques:
+        bloque.dibujar(pantalla)
+
+def crear_bloques():
     global bloques, ancho, alto    
     fila_mayor = 9
     filas_totales = 5    
     punto_inicial = 30,100 #(ancho - (Bloque.ANCHO+10)*fila_mayor) // 2, 100
     x = punto_inicial[0]
     y = punto_inicial[1]
-    bloques.clear()
     # Crear bloques en filas y columnas
+    bloques.clear()  # Limpiar la lista de bloques antes de crear nuevos
+    log("Generando bloques...")
     for i in range(filas_totales):
         for j in range(fila_mayor):
             x = x + (Bloque.ANCHO + 10)
@@ -329,10 +338,15 @@ def dibujar_bloques():
             bloques.append(bloque)
         x = punto_inicial[0] + (i+1)*(Bloque.ANCHO + 10)      # Restablecer x para la siguiente fila recorriendo 
         y = y + (Bloque.ALTO + 10) # Ajustar la posición 'y' de los bloques
-        fila_mayor = max(1, fila_mayor- 2)             # Reducir la cantidad de bloques en cada fila        
-    # Dibujar todos los bloques recorriendo la lista
+        fila_mayor = max(1, fila_mayor- 2)             # Reducir la cantidad de bloques en cada fila  
+
+def debug_info():
+    global bloques
     for bloque in bloques:
-        bloque.dibujar(pantalla)
+        if bloque.activo:
+            log(f"Bloque en fila {bloque.fila} activo. Colisiones actuales: {bloque.colisiones}/{bloque.max_colisiones}")
+        else:
+            log(f"Bloque en fila {bloque.fila} destruido.")
 
 def game_over_display():
     global game_over
@@ -345,15 +359,17 @@ def game_over_display():
     pantalla.fill((0, 0, 0))              # Fondo negro
     pantalla.blit(texto, rect_texto)      # Dibujar texto
     pygame.display.flip()                 # Actualizar pantalla
+    debug_info()
     # Esperar unos segundos antes de salir
     while game_over:        
         manejador_eventos()
+    
 
 # Función principal del juego
 def main():
     global game_over,reloj
-    game_init() # Inicializar el juego (variables globales etc)
     pygame_config()  # Configurar Pygame
+    game_init() # Inicializar el juego (variables globales etc)    
     log("Pygame inicializado correctamente.")
     log(f"Resolución de pantalla: {ancho}x{alto}")
 
@@ -376,7 +392,7 @@ def main():
         # Dibujar la pelota tomando en cuenta su movimiento y rebotes con el borde de la pantalla
         dibujar_bola()
         pygame.display.flip()     # Mostrar todo en pantalla
-        reloj.tick(60)            # Limita a 60 FPS
+        reloj.tick(60)            # Limita a 60 FPS        
 
 if __name__ == "__main__":
-    main()
+    main()    
